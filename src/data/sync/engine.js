@@ -38,6 +38,20 @@ export function estadoSync() {
   return estado
 }
 
+// Puxa apenas os operadores — usado na tela de login para saber se já existe
+// um gerente na nuvem (evita que qualquer aparelho crie o "primeiro" gerente).
+export async function puxarOperadores() {
+  if (!supabaseConfigurado) return { ok: false, motivo: 'não configurado' }
+  const supabase = obterCliente()
+  await garantirSessao(supabase)
+  const { data, error } = await supabase.from('operators').select('*')
+  if (error) throw error
+  const locais = await db.operators.toArray()
+  const { salvarLocal } = planejarSync(locais, data || [])
+  if (salvarLocal.length) await db.operators.bulkPut(salvarLocal)
+  return { ok: true, totalNuvem: (data || []).length }
+}
+
 function mergeSettings(locais, remotos) {
   const localPorChave = new Map(locais.map((r) => [r.key, r]))
   const remotoPorChave = new Map(remotos.map((r) => [r.key, r]))

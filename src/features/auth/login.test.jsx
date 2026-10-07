@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+
+vi.mock('../../data/sync/supabase.js', () => ({
+  supabaseConfigurado: false,
+  obterCliente: () => null,
+  garantirSessao: async () => null,
+}))
+
 import App from '../../App.jsx'
 import { AuthProvider } from './AuthProvider.jsx'
 import { db } from '../../data/db.js'
@@ -54,6 +61,7 @@ describe('fluxo de acesso', () => {
     })
 
     renderApp()
+    await screen.findByText(/Digite seu PIN/i)
     await digitaPin('1234')
 
     expect(await screen.findByRole('heading', { name: 'Início' })).toBeInTheDocument()
@@ -73,6 +81,7 @@ describe('fluxo de acesso', () => {
     })
 
     renderApp()
+    await screen.findByText(/Digite seu PIN/i)
     await digitaPin('0000')
 
     expect(await screen.findByText(/pin incorreto/i)).toBeInTheDocument()

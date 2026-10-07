@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+
+vi.mock('./data/sync/supabase.js', () => ({
+  supabaseConfigurado: false,
+  obterCliente: () => null,
+  garantirSessao: async () => null,
+}))
+
 import App from './App.jsx'
 import { AuthProvider } from './features/auth/AuthProvider.jsx'
 import { seedDefaults } from './data/seed.js'

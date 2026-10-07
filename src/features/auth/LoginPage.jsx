@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
+import { supabaseConfigurado } from '../../data/sync/supabase.js'
+import { puxarOperadores } from '../../data/sync/engine.js'
 import { useAuth } from './AuthProvider.jsx'
 
 const TECLAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫']
@@ -13,10 +15,66 @@ export default function LoginPage() {
   const [erro, setErro] = useState('')
   const [entrando, setEntrando] = useState(false)
   const [nome, setNome] = useState('')
+  const [tentativa, setTentativa] = useState(0)
+  const [verificacao, setVerificacao] = useState(supabaseConfigurado ? 'checando' : 'pronto')
 
-  const primeiroAcesso = total === 0
+  // Antes de permitir "criar o primeiro gerente", confirma na nuvem se já
+  // existe algum operador (senão qualquer aparelho poderia criar um gerente).
+  useEffect(() => {
+    if (!supabaseConfigurado) return
+    let ativo = true
+    setVerificacao('checando')
+    ;(async () => {
+      try {
+        await puxarOperadores()
+        if (ativo) setVerificacao('pronto')
+      } catch {
+        if (ativo) setVerificacao('sem-conexao')
+      }
+    })()
+    return () => {
+      ativo = false
+    }
+  }, [tentativa])
 
   if (operador) return <Navigate to="/" replace />
+
+  if (verificacao === 'checando' || total === undefined) {
+    return (
+      <div className="login">
+        <div className="login-brand">
+          <span className="brand-mark" aria-hidden="true">
+            🦪
+          </span>
+          <h1>Recanto Pérola</h1>
+          <p className="muted">Verificando…</p>
+        </div>
+      </div>
+    )
+  }
+
+  const totalLocal = total
+
+  if (verificacao === 'sem-conexao' && totalLocal === 0) {
+    return (
+      <div className="login">
+        <div className="login-brand">
+          <span className="brand-mark" aria-hidden="true">
+            🦪
+          </span>
+          <h1>Recanto Pérola</h1>
+          <p className="muted">Sem conexão com a nuvem</p>
+        </div>
+        <p className="form-erro">
+          Conecte-se à internet para entrar. Não é possível criar um novo gerente sem verificar a
+          nuvem.
+        </p>
+        <button className="btn btn-block" onClick={() => setTentativa((t) => t + 1)}>
+          Tentar novamente
+        </button>
+      </div>
+    )
+  }
 
   async function autenticar(pinCompleto) {
     setEntrando(true)
@@ -33,9 +91,17 @@ export default function LoginPage() {
     if (t === '⌫') return setPin((p) => p.slice(0, -1))
     if (t === '' || pin.length >= 4) return
     setErro('')
+    setPin((p) => p + t)
+  }
+
+  function teclarLogin(t) {
+    if (entrando) return
+    if (t === '⌫') return setPin((p) => p.slice(0, -1))
+    if (t === '' || pin.length >= 4) return
+    setErro('')
     const novo = pin + t
     setPin(novo)
-    if (!primeiroAcesso && novo.length === 4) autenticar(novo)
+    if (novo.length === 4) autenticar(novo)
   }
 
   async function salvarPrimeiroAcesso(e) {
@@ -46,7 +112,7 @@ export default function LoginPage() {
     await criarPrimeiroGerente({ nome, pin })
   }
 
-  if (primeiroAcesso) {
+  if (totalLocal === 0) {
     return (
       <div className="login">
         <div className="login-brand">
@@ -110,7 +176,7 @@ export default function LoginPage() {
 
       <p className="form-erro">{erro || '\u00a0'}</p>
 
-      <PinPad onPress={teclar} disabled={entrando} />
+      <PinPad onPress={teclarLogin} disabled={entrando} />
     </div>
   )
 }
