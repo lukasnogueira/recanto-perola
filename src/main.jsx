@@ -14,10 +14,15 @@ async function iniciar() {
     console.error('Falha ao preparar dados iniciais:', erro)
   }
 
+  // Quando publicado em subpasta (ex.: GitHub Pages /recanto-perola/),
+  // o roteador precisa do basename. No dev/raiz fica sem basename.
+  const base = import.meta.env.BASE_URL
+  const basename = base && base !== '/' ? base.replace(/\/$/, '') : undefined
+
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <ErrorBoundary>
-        <BrowserRouter>
+        <BrowserRouter basename={basename}>
           <AuthProvider>
             <App />
           </AuthProvider>
