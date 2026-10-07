@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
+import { linhasDoPedidoDe } from '../../data/itens.js'
 import { settingsRepo } from '../../data/repositories.js'
 import { gerarReciboPDF, nomeArquivoRecibo } from '../../lib/recibo.js'
 import { baixarBlob, compartilharArquivo } from '../../lib/compartilhar.js'
@@ -41,7 +42,8 @@ export default function ReceiptPage() {
     telefone: settings['restaurante.telefone'] || '',
     endereco: settings['restaurante.endereco'] || '',
   }
-  const dados = { restaurante, pedido, itens, pagamentos }
+  const linhas = linhasDoPedidoDe(itens)
+  const dados = { restaurante, pedido, itens: linhas, pagamentos }
   const totalPago = pagamentos.reduce((s, p) => s + p.valor, 0)
   const troco = Math.max(0, totalPago - pedido.total)
 
@@ -80,13 +82,13 @@ export default function ReceiptPage() {
         {pedido.tipo === 'delivery' && pedido.endereco && <p className="muted">📍 {pedido.endereco}</p>}
         <hr />
 
-        {itens.map((item) => (
+        {linhas.map((item) => (
           <div key={item.id} className="recibo-linha">
             <span>
               {item.quantidade}× {item.nome}
               {item.observacao ? ` (${item.observacao})` : ''}
             </span>
-            <span className="amount">{brl(item.preco * item.quantidade)}</span>
+            <span className="amount">{brl(item.subtotal)}</span>
           </div>
         ))}
         <hr />

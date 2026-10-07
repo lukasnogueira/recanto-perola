@@ -1,4 +1,5 @@
 import { db } from './db.js'
+import { agruparPorProduto, totalQuantidade } from './itens.js'
 
 const arred = (n) => Math.round((n || 0) * 100) / 100
 
@@ -34,14 +35,7 @@ export async function resumoPeriodo(inicio, fim) {
   const porTipo = { mesa: 0, balcao: 0, delivery: 0 }
   for (const o of pedidos) porTipo[o.tipo] = arred((porTipo[o.tipo] || 0) + (o.total || 0))
 
-  const mapaProdutos = new Map()
-  for (const i of itens) {
-    const atual = mapaProdutos.get(i.productId) || { nome: i.nome, quantidade: 0, total: 0 }
-    atual.quantidade += i.quantidade
-    atual.total = arred(atual.total + i.preco * i.quantidade)
-    mapaProdutos.set(i.productId, atual)
-  }
-  const porProduto = [...mapaProdutos.values()].sort((a, b) => b.total - a.total)
+  const porProduto = agruparPorProduto(itens)
 
   const totalVendas = arred(pedidos.reduce((s, o) => s + (o.total || 0), 0))
   const qtdPedidos = pedidos.length
@@ -56,6 +50,6 @@ export async function resumoPeriodo(inicio, fim) {
     totalVendas,
     qtdPedidos,
     ticketMedio,
-    totalItens: itens.reduce((s, i) => s + i.quantidade, 0),
+    totalItens: totalQuantidade(itens),
   }
 }

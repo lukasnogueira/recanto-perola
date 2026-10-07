@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
 import * as pedidos from '../../data/pedidos.js'
+import { linhasDoPedidoDe } from '../../data/itens.js'
 import { brl } from '../../lib/format.js'
 import Modal from '../../components/Modal.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
@@ -38,7 +39,7 @@ export default function OrderEditorPage() {
 
   const listaCats = categorias ?? []
   const listaProds = produtos ?? []
-  const itensLista = itens ?? []
+  const linhas = linhasDoPedidoDe(itens ?? [])
   const categoriaAtual = catAtiva ?? listaCats[0]?.id
   const termo = busca.trim().toLowerCase()
   const produtosVisiveis = listaProds.filter((p) => {
@@ -94,9 +95,9 @@ export default function OrderEditorPage() {
 
       <div className="produto-grid">
         {produtosVisiveis.map((p) => {
-          const qtd = itensLista
-            .filter((i) => i.productId === p.id)
-            .reduce((s, i) => s + i.quantidade, 0)
+          const qtd = linhas
+            .filter((l) => l.productId === p.id)
+            .reduce((s, l) => s + l.quantidade, 0)
           return (
             <button key={p.id} className="produto-card" onClick={() => adicionar(p)}>
               {qtd > 0 && <span className="produto-qtd">{qtd}</span>}
@@ -113,7 +114,7 @@ export default function OrderEditorPage() {
           <div className="muted">{pedido.itemsCount || 0} item(ns)</div>
           <strong className="amount">{brl(pedido.total)}</strong>
         </div>
-        <button className="btn" onClick={() => setCarrinhoAberto(true)} disabled={!itensLista.length}>
+        <button className="btn" onClick={() => setCarrinhoAberto(true)} disabled={!linhas.length}>
           Ver pedido
         </button>
       </div>
@@ -148,32 +149,34 @@ export default function OrderEditorPage() {
           )}
 
           <div className="stack">
-            {itensLista.map((item) => (
-              <div className="cart-item" key={item.id}>
+            {linhas.map((linha) => (
+              <div className="cart-item" key={linha.id}>
                 <div className="row-between">
-                  <strong className="grow">{item.nome}</strong>
-                  <span className="amount">{brl(item.preco * item.quantidade)}</span>
+                  <strong className="grow">{linha.nome}</strong>
+                  <span className="amount">{brl(linha.subtotal)}</span>
                 </div>
                 <div className="row-between">
-                  <input
-                    className="input input-obs"
-                    placeholder="Observação (ex.: sem cebola)"
-                    value={item.observacao || ''}
-                    onChange={(e) => pedidos.atualizarItem(item.id, { observacao: e.target.value })}
-                  />
+                  <ItemObservacao linha={linha} />
                   <div className="stepper">
-                    <button onClick={() => pedidos.alterarQuantidade(item.id, -1)} aria-label="Diminuir">
+                    <button onClick={() => pedidos.alterarQuantidade(linha.id, -1)} aria-label="Diminuir">
                       −
                     </button>
-                    <span>{item.quantidade}</span>
-                    <button onClick={() => pedidos.alterarQuantidade(item.id, 1)} aria-label="Aumentar">
+                    <span>{linha.quantidade}</span>
+                    <button onClick={() => pedidos.alterarQuantidade(linha.id, 1)} aria-label="Aumentar">
                       +
                     </button>
                   </div>
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => pedidos.removerItem(linha.id)}
+                    aria-label="Remover item"
+                  >
+                    🗑
+                  </button>
                 </div>
               </div>
             ))}
-            {itensLista.length === 0 && <p className="muted">Nenhum item no pedido.</p>}
+            {linhas.length === 0 && <p className="muted">Nenhum item no pedido.</p>}
           </div>
 
           <label className="field">
@@ -244,6 +247,26 @@ export default function OrderEditorPage() {
         </div>
       </Modal>
     </div>
+  )
+}
+
+function ItemObservacao({ linha }) {
+  const [valor, setValor] = useState(linha.observacao || '')
+
+  useEffect(() => {
+    setValor(linha.observacao || '')
+  }, [linha.id, linha.observacao])
+
+  return (
+    <input
+      className="input input-obs"
+      placeholder="Observação (ex.: sem cebola)"
+      value={valor}
+      onChange={(e) => setValor(e.target.value)}
+      onBlur={() => {
+        if (valor !== (linha.observacao || '')) pedidos.alterarObservacao(linha.id, valor)
+      }}
+    />
   )
 }
 

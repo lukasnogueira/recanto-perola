@@ -83,6 +83,7 @@ create table if not exists public."orderItems" (
   nome text,
   preco double precision default 0,
   quantidade integer default 1,
+  contrib jsonb,
   observacao text,
   "createdAt" bigint,
   "updatedAt" bigint,

@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
+import { linhasDoPedidoDe } from '../../data/itens.js'
 import { brl, dataHora } from '../../lib/format.js'
 import PageHeader from '../../components/PageHeader.jsx'
 
@@ -23,7 +24,7 @@ export default function OrderViewPage() {
     )
   }
 
-  const lista = itens ?? []
+  const lista = linhasDoPedidoDe(itens ?? [])
 
   return (
     <div className="stack">
@@ -48,7 +49,7 @@ export default function OrderViewPage() {
               <span>
                 <strong>{item.quantidade}×</strong> {item.nome}
               </span>
-              <span className="amount">{brl(item.preco * item.quantidade)}</span>
+              <span className="amount">{brl(item.subtotal)}</span>
             </div>
             {item.observacao && <span className="muted">↳ {item.observacao}</span>}
           </div>

@@ -1,6 +1,7 @@
 import { db } from '../db.js'
+import { recalcularTodos, deduplicarComandas } from '../pedidos.js'
 import { obterCliente, garantirSessao, supabaseConfigurado } from './supabase.js'
-import { planejarSync } from './merge.js'
+import { planejarSync, planejarItens, itemPrecisaEnviar } from './merge.js'
 
 const TABELAS_ID = [
   'operators',
@@ -37,27 +38,10 @@ export function estadoSync() {
   return estado
 }
 
-async function sincronizarTabelaId(supabase, nome) {
-  const { data: remotos, error } = await supabase.from(nome).select('*')
-  if (error) throw error
-  const locais = await db[nome].toArray()
-  const { salvarLocal, enviar } = planejarSync(locais, remotos || [])
-  if (salvarLocal.length) await db[nome].bulkPut(salvarLocal)
-  if (enviar.length) {
-    const { error: erroEnvio } = await supabase.from(nome).upsert(enviar)
-    if (erroEnvio) throw erroEnvio
-  }
-  return { baixados: salvarLocal.length, enviados: enviar.length }
-}
-
-async function sincronizarSettings(supabase) {
-  const { data: remotos, error } = await supabase.from('settings').select('*')
-  if (error) throw error
-  const locais = await db.settings.toArray()
+function mergeSettings(locais, remotos) {
   const localPorChave = new Map(locais.map((r) => [r.key, r]))
-  const remotoPorChave = new Map((remotos || []).map((r) => [r.key, r]))
-
-  const salvarLocal = (remotos || []).filter((r) => {
+  const remotoPorChave = new Map(remotos.map((r) => [r.key, r]))
+  const salvarLocal = remotos.filter((r) => {
     const l = localPorChave.get(r.key)
     return !l || (r.updatedAt || 0) > (l.updatedAt || 0)
   })
@@ -65,13 +49,7 @@ async function sincronizarSettings(supabase) {
     const r = remotoPorChave.get(l.key)
     return !r || (l.updatedAt || 0) > (r.updatedAt || 0)
   })
-
-  if (salvarLocal.length) await db.settings.bulkPut(salvarLocal)
-  if (enviar.length) {
-    const { error: erroEnvio } = await supabase.from('settings').upsert(enviar)
-    if (erroEnvio) throw erroEnvio
-  }
-  return { baixados: salvarLocal.length, enviados: enviar.length }
+  return { salvarLocal, enviar }
 }
 
 export async function sincronizar() {
@@ -83,22 +61,73 @@ export async function sincronizar() {
     const supabase = obterCliente()
     await garantirSessao(supabase)
 
-    let baixados = 0
-    let enviados = 0
-    const detalhe = {}
+    // 1) Baixa tudo (dataset pequeno — síncrono completo).
+    const remotos = {}
     for (const nome of TABELAS_ID) {
-      const r = await sincronizarTabelaId(supabase, nome)
-      baixados += r.baixados
-      enviados += r.enviados
-      detalhe[nome] = r
+      const { data, error } = await supabase.from(nome).select('*')
+      if (error) throw error
+      remotos[nome] = data || []
     }
-    const rs = await sincronizarSettings(supabase)
-    baixados += rs.baixados
-    enviados += rs.enviados
-    detalhe.settings = rs
+    const { data: settRemote, error: settErr } = await supabase.from('settings').select('*')
+    if (settErr) throw settErr
+    remotos.settings = settRemote || []
+
+    // 2) Mescla remoto -> local.
+    for (const nome of TABELAS_ID) {
+      const locais = await db[nome].toArray()
+      if (nome === 'orderItems') {
+        const mescladas = planejarItens(locais, remotos[nome])
+        if (mescladas.length) await db[nome].bulkPut(mescladas)
+      } else {
+        const { salvarLocal } = planejarSync(locais, remotos[nome])
+        if (salvarLocal.length) await db[nome].bulkPut(salvarLocal)
+      }
+    }
+    {
+      const locais = await db.settings.toArray()
+      const { salvarLocal } = mergeSettings(locais, remotos.settings)
+      if (salvarLocal.length) await db.settings.bulkPut(salvarLocal)
+    }
+
+    // 3) Manutenção CRDT: totais derivados + junta comandas duplicadas.
+    await recalcularTodos()
+    await deduplicarComandas()
+    await recalcularTodos()
+
+    // 4) Envia local -> remoto.
+    let enviados = 0
+    let baixados = 0
+    for (const nome of TABELAS_ID) {
+      const locais = await db[nome].toArray()
+      const remotoPorId = new Map(remotos[nome].map((r) => [r.id, r]))
+      let enviar
+      if (nome === 'orderItems') {
+        enviar = locais.filter((l) => itemPrecisaEnviar(l, remotoPorId.get(l.id)))
+      } else {
+        enviar = locais.filter((l) => {
+          const r = remotoPorId.get(l.id)
+          return !r || (l.updatedAt || 0) > (r.updatedAt || 0)
+        })
+      }
+      if (enviar.length) {
+        const { error } = await supabase.from(nome).upsert(enviar)
+        if (error) throw error
+        enviados += enviar.length
+      }
+      baixados += remotos[nome].length
+    }
+    {
+      const locais = await db.settings.toArray()
+      const { enviar } = mergeSettings(locais, remotos.settings)
+      if (enviar.length) {
+        const { error } = await supabase.from('settings').upsert(enviar)
+        if (error) throw error
+        enviados += enviar.length
+      }
+    }
 
     notificar({ sincronizando: false, ultimaSync: Date.now(), erro: null })
-    return { ok: true, baixados, enviados, detalhe }
+    return { ok: true, enviados, baixados }
   } catch (erro) {
     const message = erro?.message || String(erro)
     notificar({ sincronizando: false, erro: message })
