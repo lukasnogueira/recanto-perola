@@ -1,6 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+
+vi.mock('../../data/sync/supabase.js', () => ({
+  supabaseConfigurado: false,
+  obterCliente: () => null,
+  garantirSessao: async () => null,
+}))
+
 import SyncCard from './SyncCard.jsx'
 
 describe('SyncCard', () => {
