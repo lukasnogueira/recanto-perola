@@ -1,5 +1,6 @@
 import { db } from '../db.js'
 import { recalcularTodos, deduplicarComandas } from '../pedidos.js'
+import { deduplicarCatalogo } from '../catalogo.js'
 import { obterCliente, garantirSessao, supabaseConfigurado } from './supabase.js'
 import { planejarSync, planejarItens, itemPrecisaEnviar } from './merge.js'
 
@@ -103,8 +104,8 @@ export async function sincronizar() {
       if (salvarLocal.length) await db.settings.bulkPut(salvarLocal)
     }
 
-    // 3) Manutenção CRDT: totais derivados + junta comandas duplicadas.
-    await recalcularTodos()
+    // 3) Manutenção CRDT: catálogo sem duplicatas, comandas juntas e totais derivados.
+    await deduplicarCatalogo()
     await deduplicarComandas()
     await recalcularTodos()
 

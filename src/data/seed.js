@@ -1,5 +1,5 @@
 import { db } from './db.js'
-import { uid } from '../lib/format.js'
+import { categoriaId, produtoId, mesaId } from './catalogo.js'
 
 const CATEGORIAS = [
   { nome: 'Entradas', ordem: 1 },
@@ -22,9 +22,11 @@ const PRODUTOS = [
   { cat: 'Sobremesas', nome: 'Sorvete', preco: 14 },
 ]
 
-function base(extra) {
+// IDs determinísticos → cada aparelho gera exatamente os mesmos registros,
+// então a sincronização faz upsert (não duplica).
+function base(id, extra) {
   const now = Date.now()
-  return { id: uid(), ativo: 1, createdAt: now, updatedAt: now, deleted: 0, deviceId: 'seed', ...extra }
+  return { id, ativo: 1, createdAt: now, updatedAt: now, deleted: 0, deviceId: 'seed', ...extra }
 }
 
 export async function seedDefaults() {
@@ -38,20 +40,19 @@ export async function seedDefaults() {
   }
 
   if ((await db.categories.count()) === 0) {
-    const catMap = {}
     for (const c of CATEGORIAS) {
-      const rec = base({ nome: c.nome, ordem: c.ordem })
-      await db.categories.put(rec)
-      catMap[c.nome] = rec.id
+      await db.categories.put(base(categoriaId(c.nome), { nome: c.nome, ordem: c.ordem }))
     }
     for (const p of PRODUTOS) {
-      await db.products.put(base({ categoryId: catMap[p.cat], nome: p.nome, preco: p.preco }))
+      await db.products.put(
+        base(produtoId(p.nome), { categoryId: categoriaId(p.cat), nome: p.nome, preco: p.preco }),
+      )
     }
   }
 
   if ((await db.mesas.count()) === 0) {
     for (let n = 1; n <= 8; n++) {
-      await db.mesas.put(base({ numero: n, nome: `Mesa ${n}`, area: 'Salão' }))
+      await db.mesas.put(base(mesaId(n), { numero: n, nome: `Mesa ${n}`, area: 'Salão' }))
     }
   }
 }
