@@ -22,6 +22,21 @@ export function dataHora(value) {
   })
 }
 
+export function apenasData(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
+export function apenasHora(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
 export function hoje() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)

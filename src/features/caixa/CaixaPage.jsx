@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import * as caixa from '../../data/caixa.js'
 import { useAuth } from '../auth/AuthProvider.jsx'
-import { brl, dataHora } from '../../lib/format.js'
+import { brl, dataHora, apenasData, apenasHora } from '../../lib/format.js'
 import { METODOS } from '../pagamentos/metodos.js'
 import Modal from '../../components/Modal.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
@@ -246,25 +246,60 @@ export default function CaixaPage() {
 }
 
 function Historico({ lista }) {
+  const porDia = new Map()
+  for (const s of lista) {
+    const d = new Date(s.closedAt)
+    const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`
+    const sessoes = porDia.get(chave) || []
+    sessoes.push(s)
+    porDia.set(chave, sessoes)
+  }
+  const dias = [...porDia.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+
   return (
     <div className="stack">
-      <h2 className="section-title">Fechamentos anteriores</h2>
-      <div className="list">
-        {lista.map((s) => (
-          <div className="list-item" key={s.id}>
-            <span className="grow">
-              <strong>{dataHora(s.closedAt)}</strong>
-              <span className="muted comanda-sub">
-                Vendas {brl(s.resumoFechamento?.totalVendas ?? 0)} · Contado {brl(s.valorContado ?? 0)}
+      <h2 className="section-title">Faturamento por dia</h2>
+      {dias.map(([dia, sessoes]) => {
+        const faturamento = sessoes.reduce((s, x) => s + (x.resumoFechamento?.totalVendas ?? 0), 0)
+        const pedidos = sessoes.reduce((s, x) => s + (x.resumoFechamento?.qtdPedidos ?? 0), 0)
+        const contado = sessoes.reduce((s, x) => s + (x.valorContado ?? 0), 0)
+        const diferenca = sessoes.reduce((s, x) => s + (x.diferenca ?? 0), 0)
+        return (
+          <div className="card stack" key={dia}>
+            <div className="row-between">
+              <strong>{apenasData(sessoes[0].closedAt)}</strong>
+              <span className={`badge ${Math.abs(diferenca) < 0.005 ? 'badge-success' : 'badge-danger'}`}>
+                {Math.abs(diferenca) < 0.005 ? 'Sem diferença' : `Dif. ${brl(diferenca)}`}
               </span>
-            </span>
-            <span className={`badge ${Math.abs(s.diferenca || 0) < 0.005 ? 'badge-success' : 'badge-danger'}`}>
-              {brl(s.diferenca ?? 0)}
-            </span>
+            </div>
+            <div className="row-between">
+              <span className="muted">Faturamento do dia</span>
+              <strong className="amount" style={{ fontSize: '1.4rem' }}>
+                {brl(faturamento)}
+              </strong>
+            </div>
+            <div className="row-between muted">
+              <span>
+                {sessoes.length} fechamento(s) · {pedidos} pedido(s)
+              </span>
+              <span>Contado {brl(contado)}</span>
+            </div>
+            {sessoes.length > 1 && (
+              <div className="stack">
+                {sessoes.map((s) => (
+                  <div className="row-between muted" key={s.id}>
+                    <span>🕒 {apenasHora(s.closedAt)}</span>
+                    <span className="amount">{brl(s.resumoFechamento?.totalVendas ?? 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
-        {lista.length === 0 && <p className="muted">Nenhum caixa fechado ainda.</p>}
-      </div>
+        )
+      })}
+      {dias.length === 0 && <p className="muted">Nenhum caixa fechado ainda.</p>}
     </div>
   )
 }
