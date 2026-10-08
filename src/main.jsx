@@ -5,11 +5,13 @@ import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { AuthProvider } from './features/auth/AuthProvider.jsx'
 import { seedDefaults } from './data/seed.js'
+import { deduplicarCatalogo } from './data/catalogo.js'
 import './theme/global.css'
 
 async function iniciar() {
   try {
     await seedDefaults()
+    await deduplicarCatalogo()
   } catch (erro) {
     console.error('Falha ao preparar dados iniciais:', erro)
   }
