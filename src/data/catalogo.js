@@ -105,6 +105,8 @@ export async function limparCatalogo() {
   for (const p of produtos) {
     await db.products.update(p.id, { deleted: 1, ativo: 0, updatedAt: when, deviceId: DEVICE_ID })
   }
+  // Impede que o cardápio padrão volte a ser semeado depois de limpar.
+  await db.settings.put({ key: 'catalogo.semeado', value: 1, updatedAt: when })
   return { categorias: categorias.length, produtos: produtos.length }
 }
 

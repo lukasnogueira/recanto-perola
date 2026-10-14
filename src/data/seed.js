@@ -35,6 +35,19 @@ function base(id, extra) {
   return { id, ativo: 1, createdAt: now, updatedAt: now, deleted: 0, deviceId: 'menu', ...extra }
 }
 
+function contarAtivos(tabela) {
+  return db[tabela].filter((r) => !r.deleted).count()
+}
+
+async function catalogoJaSemeado() {
+  const row = await db.settings.get('catalogo.semeado')
+  return row?.value === 1
+}
+
+async function marcarCatalogoSemeado() {
+  await db.settings.put({ key: 'catalogo.semeado', value: 1, updatedAt: Date.now() })
+}
+
 export async function seedDefaults() {
   if ((await db.settings.count()) === 0) {
     await db.settings.bulkPut([
@@ -45,18 +58,22 @@ export async function seedDefaults() {
     ])
   }
 
-  if ((await db.categories.count()) === 0) {
-    for (const c of CATEGORIAS) {
-      await db.categories.put(base(categoriaId(c.nome), { nome: c.nome, ordem: c.ordem }))
+  // Semeia o cardápio uma única vez; depois de "Limpar catálogo" não volta.
+  if (!(await catalogoJaSemeado())) {
+    if ((await contarAtivos('categories')) === 0) {
+      for (const c of CATEGORIAS) {
+        await db.categories.put(base(categoriaId(c.nome), { nome: c.nome, ordem: c.ordem }))
+      }
+      for (const p of PRODUTOS) {
+        await db.products.put(
+          base(produtoId(p.nome), { categoryId: categoriaId(p.cat), nome: p.nome, preco: p.preco }),
+        )
+      }
     }
-    for (const p of PRODUTOS) {
-      await db.products.put(
-        base(produtoId(p.nome), { categoryId: categoriaId(p.cat), nome: p.nome, preco: p.preco }),
-      )
-    }
+    await marcarCatalogoSemeado()
   }
 
-  if ((await db.mesas.count()) === 0) {
+  if ((await contarAtivos('mesas')) === 0) {
     for (let n = 1; n <= 8; n++) {
       await db.mesas.put(base(mesaId(n), { numero: n, nome: `Mesa ${n}`, area: 'Salão' }))
     }

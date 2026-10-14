@@ -82,6 +82,40 @@ describe('catálogo — IDs determinísticos e dedup', () => {
     expect((await db.products.get('u1')).deleted).toBe(0)
   })
 
+  it('semeia o cardápio depois de remover o catálogo de exemplo', async () => {
+    // simula o catálogo de exemplo antigo (deviceId 'seed')
+    await db.categories.put({
+      id: 'cat-x',
+      nome: 'Entradas',
+      ativo: 1,
+      deleted: 0,
+      updatedAt: 1,
+      deviceId: 'seed',
+    })
+    await db.products.put({
+      id: 'prod-x',
+      categoryId: 'cat-x',
+      nome: 'Moqueca',
+      preco: 1,
+      ativo: 1,
+      deleted: 0,
+      updatedAt: 1,
+      deviceId: 'seed',
+    })
+
+    await removerCatalogoExemplo()
+    await seedDefaults()
+
+    expect(await db.products.filter((p) => !p.deleted).count()).toBe(18)
+  })
+
+  it('não ressemeia o cardápio depois de limpar', async () => {
+    await seedDefaults()
+    await limparCatalogo()
+    await seedDefaults()
+    expect(await db.products.filter((p) => !p.deleted).count()).toBe(0)
+  })
+
   it('junta categorias duplicadas e remapeia produtos', async () => {
     await db.categories.bulkPut([
       { id: 'aaa', nome: 'Entradas', ativo: 1, deleted: 0, updatedAt: 1 },
