@@ -3,8 +3,32 @@ import { db } from '../../data/db.js'
 import { operadoresRepo } from '../../data/repositories.js'
 import { hashPin, newSalt } from './pin.js'
 
+// Sessão guardada em sessionStorage: dura enquanto o app está aberto e é
+// descartada ao fechar/reabrir — assim o PIN é pedido a cada abertura.
 const SESSION_KEY = 'recanto:session'
 const AuthContext = createContext(null)
+
+function lerSessao() {
+  try {
+    return sessionStorage.getItem(SESSION_KEY)
+  } catch {
+    return null
+  }
+}
+function gravarSessao(id) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, id)
+  } catch {
+    /* sem storage: sessão só em memória */
+  }
+}
+function limparSessao() {
+  try {
+    sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+}
 
 export function AuthProvider({ children }) {
   const [operador, setOperador] = useState(null)
@@ -12,24 +36,26 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     ;(async () => {
-      const id = localStorage.getItem(SESSION_KEY)
+      const id = lerSessao()
       if (id) {
         const op = await db.operators.get(id)
         if (op && !op.deleted && op.ativo) {
           setOperador(op)
         } else {
-          localStorage.removeItem(SESSION_KEY)
+          limparSessao()
         }
       }
       setCarregando(false)
     })()
   }, [])
 
-  const entrarPorPin = useCallback(async (pin) => {
-    const operadores = await db.operators.filter((o) => !o.deleted && o.ativo).toArray()
+  const entrarPorPin = useCallback(async (pin, operadorId = null) => {
+    const operadores = operadorId
+      ? [await db.operators.get(operadorId)].filter(Boolean)
+      : await db.operators.filter((o) => !o.deleted && o.ativo).toArray()
     for (const op of operadores) {
-      if ((await hashPin(pin, op.salt)) === op.pinHash) {
-        localStorage.setItem(SESSION_KEY, op.id)
+      if (op && !op.deleted && op.ativo && (await hashPin(pin, op.salt)) === op.pinHash) {
+        gravarSessao(op.id)
         setOperador(op)
         return { ok: true, operador: op }
       }
@@ -47,13 +73,13 @@ export function AuthProvider({ children }) {
       salt,
       pinHash,
     })
-    localStorage.setItem(SESSION_KEY, op.id)
+    gravarSessao(op.id)
     setOperador(op)
     return op
   }, [])
 
   const sair = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY)
+    limparSessao()
     setOperador(null)
   }, [])
 

@@ -575,6 +575,58 @@ a {
   font-size: 1.4rem;
 }
 
+.login-user {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 1.6rem;
+}
+
+.login-users {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.login-user-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.login-user-item .avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 1.3rem;
+}
+
+.login-user-item:active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
 /* Modal */
 .modal-backdrop {
   position: fixed;
