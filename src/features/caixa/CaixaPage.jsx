@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../../data/db.js'
 import * as caixa from '../../data/caixa.js'
 import { useAuth } from '../auth/AuthProvider.jsx'
 import { brl, dataHora, apenasData, apenasHora } from '../../lib/format.js'
@@ -15,6 +16,10 @@ export default function CaixaPage() {
     [sessao?.id],
   )
   const historico = useLiveQuery(() => caixa.historicoCaixas(), [])
+  const pedidosFechados = useLiveQuery(
+    () => db.orders.filter((o) => !o.deleted && o.status === 'fechado').toArray(),
+    [],
+  )
 
   const [valorAbertura, setValorAbertura] = useState('')
   const [modalMov, setModalMov] = useState(null)
@@ -52,7 +57,7 @@ export default function CaixaPage() {
           </button>
         </div>
 
-        <Historico lista={historico ?? []} />
+        <Historico lista={historico ?? []} pedidos={pedidosFechados ?? []} />
       </div>
     )
   }
@@ -245,7 +250,9 @@ export default function CaixaPage() {
   )
 }
 
-function Historico({ lista }) {
+function Historico({ lista, pedidos = [] }) {
+  const [aberto, setAberto] = useState(null)
+
   const porDia = new Map()
   for (const s of lista) {
     const d = new Date(s.closedAt)
@@ -263,37 +270,73 @@ function Historico({ lista }) {
       <h2 className="section-title">Faturamento por dia</h2>
       {dias.map(([dia, sessoes]) => {
         const faturamento = sessoes.reduce((s, x) => s + (x.resumoFechamento?.totalVendas ?? 0), 0)
-        const pedidos = sessoes.reduce((s, x) => s + (x.resumoFechamento?.qtdPedidos ?? 0), 0)
-        const contado = sessoes.reduce((s, x) => s + (x.valorContado ?? 0), 0)
         const diferenca = sessoes.reduce((s, x) => s + (x.diferenca ?? 0), 0)
+        const idsSessoes = new Set(sessoes.map((s) => s.id))
+        const comandas = pedidos
+          .filter((o) => idsSessoes.has(o.cashSessionId))
+          .sort((a, b) => (a.closedAt || 0) - (b.closedAt || 0))
+        const expandido = aberto === dia
+
         return (
-          <div className="card stack" key={dia}>
-            <div className="row-between">
-              <strong>{apenasData(sessoes[0].closedAt)}</strong>
-              <span className={`badge ${Math.abs(diferenca) < 0.005 ? 'badge-success' : 'badge-danger'}`}>
-                {Math.abs(diferenca) < 0.005 ? 'Sem diferença' : `Dif. ${brl(diferenca)}`}
+          <div className="card" key={dia}>
+            <button
+              type="button"
+              className="dia-header"
+              onClick={() => setAberto(expandido ? null : dia)}
+              aria-expanded={expandido}
+            >
+              <span className="grow" style={{ textAlign: 'left' }}>
+                <strong>{apenasData(sessoes[0].closedAt)}</strong>
+                <span className="muted comanda-sub">{comandas.length} comanda(s)</span>
               </span>
-            </div>
-            <div className="row-between">
-              <span className="muted">Faturamento do dia</span>
-              <strong className="amount" style={{ fontSize: '1.4rem' }}>
-                {brl(faturamento)}
-              </strong>
-            </div>
-            <div className="row-between muted">
-              <span>
-                {sessoes.length} fechamento(s) · {pedidos} pedido(s)
+              <span className="stack" style={{ alignItems: 'flex-end', gap: 2 }}>
+                <strong className="amount" style={{ fontSize: '1.2rem' }}>
+                  {brl(faturamento)}
+                </strong>
+                <span
+                  className={`badge ${Math.abs(diferenca) < 0.005 ? 'badge-success' : 'badge-danger'}`}
+                >
+                  {Math.abs(diferenca) < 0.005 ? 'Sem diferença' : `Dif. ${brl(diferenca)}`}
+                </span>
               </span>
-              <span>Contado {brl(contado)}</span>
-            </div>
-            {sessoes.length > 1 && (
-              <div className="stack">
-                {sessoes.map((s) => (
-                  <div className="row-between muted" key={s.id}>
-                    <span>🕒 {apenasHora(s.closedAt)}</span>
-                    <span className="amount">{brl(s.resumoFechamento?.totalVendas ?? 0)}</span>
+              <span className="chevron" aria-hidden="true">
+                {expandido ? '▾' : '▸'}
+              </span>
+            </button>
+
+            {expandido && (
+              <div className="stack" style={{ marginTop: 'var(--space-3)' }}>
+                <div className="row-between muted">
+                  <span>{sessoes.length} fechamento(s)</span>
+                  <span>
+                    Contado {brl(sessoes.reduce((s, x) => s + (x.valorContado ?? 0), 0))}
+                  </span>
+                </div>
+
+                {sessoes.length > 1 && (
+                  <div className="stack">
+                    {sessoes.map((s) => (
+                      <div className="row-between muted" key={s.id}>
+                        <span>🕒 {apenasHora(s.closedAt)}</span>
+                        <span className="amount">{brl(s.resumoFechamento?.totalVendas ?? 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <h3 className="section-title" style={{ fontSize: '0.95rem' }}>
+                  Comandas do dia
+                </h3>
+                {comandas.map((o) => (
+                  <div className="row-between" key={o.id}>
+                    <span className="row" style={{ gap: 8 }}>
+                      <span className={`tag tag-${o.tipo}`}>{tagTipo(o)}</span>
+                      <span>{tituloComanda(o)}</span>
+                    </span>
+                    <span className="amount">{brl(o.total)}</span>
                   </div>
                 ))}
+                {comandas.length === 0 && <p className="muted">Nenhuma comanda registrada.</p>}
               </div>
             )}
           </div>
@@ -302,4 +345,18 @@ function Historico({ lista }) {
       {dias.length === 0 && <p className="muted">Nenhum caixa fechado ainda.</p>}
     </div>
   )
+}
+
+function tagTipo(o) {
+  if (o.tipo === 'mesa') return '🪑'
+  if (o.tipo === 'delivery') return '🛵'
+  return '🧾'
+}
+
+function tituloComanda(o) {
+  if (o.tipo === 'mesa') {
+    return `${o.mesaNome || `Mesa ${o.mesaNumero}`}${o.clienteNome ? ` · ${o.clienteNome}` : ''}`
+  }
+  if (o.tipo === 'delivery') return `Delivery${o.clienteNome ? ` · ${o.clienteNome}` : ''}`
+  return `Balcão${o.clienteNome ? ` · ${o.clienteNome}` : ''}`
 }

@@ -999,6 +999,25 @@ a {
   color: var(--color-success);
 }
 
+.dia-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chevron {
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
 /* Avisos de PWA */
 .install-bar {
   display: flex;
