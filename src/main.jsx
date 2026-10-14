@@ -10,8 +10,8 @@ import './theme/global.css'
 
 async function iniciar() {
   try {
-    await seedDefaults()
     await removerCatalogoExemplo()
+    await seedDefaults()
     await deduplicarCatalogo()
   } catch (erro) {
     console.error('Falha ao preparar dados iniciais:', erro)

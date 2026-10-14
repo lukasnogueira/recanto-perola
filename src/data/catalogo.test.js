@@ -24,10 +24,13 @@ describe('catálogo — IDs determinísticos e dedup', () => {
     expect(mesaId(3)).toBe('mesa-3')
   })
 
-  it('o seed cria mesas determinísticas e catálogo vazio', async () => {
+  it('o seed cria o cardápio e mesas determinísticas', async () => {
     await seedDefaults()
-    expect(await db.categories.count()).toBe(0)
-    expect(await db.products.count()).toBe(0)
+    expect(await db.categories.count()).toBe(3)
+    expect(await db.products.count()).toBe(18)
+    const esp = await db.products.get('prod-espeto-bovino')
+    expect(esp?.nome).toBe('Espeto Bovino')
+    expect(esp?.preco).toBe(35.99)
     const mesa = await db.mesas.get('mesa-1')
     expect(mesa?.numero).toBe(1)
   })

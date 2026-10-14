@@ -29,11 +29,11 @@ describe('renderização inicial', () => {
     expect(await screen.findByText(/primeiro acesso/i)).toBeInTheDocument()
   })
 
-  it('gera mesas no seed e catálogo vazio', async () => {
+  it('semeia mesas e o cardápio', async () => {
     const { db } = await import('./data/db.js')
     const mesas = await db.mesas.filter((t) => !t.deleted).count()
     const cats = await db.categories.count()
     expect(mesas).toBeGreaterThan(0)
-    expect(cats).toBe(0)
+    expect(cats).toBeGreaterThan(0)
   })
 })
