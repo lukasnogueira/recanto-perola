@@ -92,3 +92,33 @@ export async function deduplicarCatalogo() {
   await deduplicarMesas()
   await deduplicarOperadores()
 }
+
+// Limpa o catálogo (produtos e categorias) marcando como excluídos — assim a
+// exclusão sincroniza para os outros aparelhos e não "ressuscita".
+export async function limparCatalogo() {
+  const when = agora()
+  const categorias = await db.categories.toArray()
+  const produtos = await db.products.toArray()
+  for (const c of categorias) {
+    await db.categories.update(c.id, { deleted: 1, ativo: 0, updatedAt: when, deviceId: DEVICE_ID })
+  }
+  for (const p of produtos) {
+    await db.products.update(p.id, { deleted: 1, ativo: 0, updatedAt: when, deviceId: DEVICE_ID })
+  }
+  return { categorias: categorias.length, produtos: produtos.length }
+}
+
+// Remove o catálogo de exemplo (itens/categorias criados pelo seed, deviceId
+// 'seed') sem tocar nos produtos que o restaurante cadastrar.
+export async function removerCatalogoExemplo() {
+  const when = agora()
+  const produtos = await db.products.filter((p) => !p.deleted && p.deviceId === 'seed').toArray()
+  const categorias = await db.categories.filter((c) => !c.deleted && c.deviceId === 'seed').toArray()
+  for (const p of produtos) {
+    await db.products.update(p.id, { deleted: 1, ativo: 0, updatedAt: when, deviceId: DEVICE_ID })
+  }
+  for (const c of categorias) {
+    await db.categories.update(c.id, { deleted: 1, ativo: 0, updatedAt: when, deviceId: DEVICE_ID })
+  }
+  return { produtos: produtos.length, categorias: categorias.length }
+}

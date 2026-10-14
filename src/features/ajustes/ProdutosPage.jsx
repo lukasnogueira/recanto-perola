@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
 import { categoriasRepo, produtosRepo } from '../../data/repositories.js'
+import { limparCatalogo } from '../../data/catalogo.js'
+import { sincronizar } from '../../data/sync/engine.js'
 import { brl } from '../../lib/format.js'
 import Modal from '../../components/Modal.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
@@ -44,9 +46,32 @@ export default function ProdutosPage() {
     await categoriasRepo.remove(id)
   }
 
+  async function limpar() {
+    if (
+      !confirm(
+        'Limpar TODO o catálogo (produtos e categorias)?\n\nOs pedidos já feitos não são afetados. Não pode ser desfeito.',
+      )
+    ) {
+      return
+    }
+    const r = await limparCatalogo()
+    await sincronizar()
+    alert(`Catálogo limpo: ${r.produtos} produto(s) e ${r.categorias} categoria(s).`)
+  }
+
   return (
     <div className="stack">
-      <PageHeader title="Produtos" subtitle="Categorias e itens do cardápio" />
+      <PageHeader
+        title="Produtos"
+        subtitle="Categorias e itens do cardápio"
+        action={
+          (listaCats.length > 0 || listaProds.length > 0) && (
+            <button className="btn btn-sm btn-ghost" onClick={limpar}>
+              Limpar
+            </button>
+          )
+        }
+      />
 
       <section className="stack">
         <div className="row-between">

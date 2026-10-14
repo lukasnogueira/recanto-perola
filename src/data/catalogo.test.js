@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from './db.js'
-import { slug, categoriaId, produtoId, mesaId, deduplicarCatalogo } from './catalogo.js'
+import {
+  slug,
+  categoriaId,
+  produtoId,
+  mesaId,
+  deduplicarCatalogo,
+  limparCatalogo,
+  removerCatalogoExemplo,
+} from './catalogo.js'
 import { seedDefaults } from './seed.js'
 
 describe('catálogo — IDs determinísticos e dedup', () => {
@@ -16,14 +24,59 @@ describe('catálogo — IDs determinísticos e dedup', () => {
     expect(mesaId(3)).toBe('mesa-3')
   })
 
-  it('o seed usa ids determinísticos (mesmo em qualquer aparelho)', async () => {
+  it('o seed cria mesas determinísticas e catálogo vazio', async () => {
     await seedDefaults()
-    const cat = await db.categories.get('cat-entradas')
-    const prod = await db.products.get('prod-moqueca-de-peixe')
+    expect(await db.categories.count()).toBe(0)
+    expect(await db.products.count()).toBe(0)
     const mesa = await db.mesas.get('mesa-1')
-    expect(cat?.nome).toBe('Entradas')
-    expect(prod?.nome).toBe('Moqueca de Peixe')
     expect(mesa?.numero).toBe(1)
+  })
+
+  it('limparCatalogo marca produtos e categorias como excluídos', async () => {
+    await db.categories.put({ id: 'c1', nome: 'X', ativo: 1, deleted: 0, updatedAt: 1 })
+    await db.products.put({
+      id: 'p1',
+      categoryId: 'c1',
+      nome: 'Y',
+      preco: 5,
+      ativo: 1,
+      deleted: 0,
+      updatedAt: 1,
+    })
+
+    const r = await limparCatalogo()
+
+    expect(r).toEqual({ categorias: 1, produtos: 1 })
+    expect((await db.categories.get('c1')).deleted).toBe(1)
+    expect((await db.products.get('p1')).deleted).toBe(1)
+  })
+
+  it('removerCatalogoExemplo apaga só o catálogo vindo do seed', async () => {
+    await db.products.put({
+      id: 's1',
+      categoryId: 'c',
+      nome: 'Exemplo',
+      preco: 1,
+      ativo: 1,
+      deleted: 0,
+      updatedAt: 1,
+      deviceId: 'seed',
+    })
+    await db.products.put({
+      id: 'u1',
+      categoryId: 'c',
+      nome: 'Meu produto',
+      preco: 1,
+      ativo: 1,
+      deleted: 0,
+      updatedAt: 1,
+      deviceId: 'devX',
+    })
+
+    await removerCatalogoExemplo()
+
+    expect((await db.products.get('s1')).deleted).toBe(1)
+    expect((await db.products.get('u1')).deleted).toBe(0)
   })
 
   it('junta categorias duplicadas e remapeia produtos', async () => {
