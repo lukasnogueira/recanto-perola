@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
 import * as pagamentos from '../../data/pagamentos.js'
+import { sessaoAberta, abrirCaixa } from '../../data/caixa.js'
+import { useAuth } from '../auth/AuthProvider.jsx'
 import { METODOS, rotuloMetodo } from './metodos.js'
 import { brl } from '../../lib/format.js'
 import PageHeader from '../../components/PageHeader.jsx'
@@ -12,7 +14,9 @@ const arred = (n) => Math.round(n * 100) / 100
 export default function PaymentPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { operador } = useAuth()
   const pedido = useLiveQuery(() => db.orders.get(id), [id])
+  const sessaoCaixa = useLiveQuery(() => sessaoAberta(), [])
   const pagamentosLista =
     useLiveQuery(
       () => db.payments.where('orderId').equals(id).filter((p) => !p.deleted).toArray(),
@@ -20,6 +24,8 @@ export default function PaymentPage() {
     ) ?? []
   const [metodo, setMetodo] = useState('dinheiro')
   const [valor, setValor] = useState('')
+  const [valorAbertura, setValorAbertura] = useState('')
+  const [abrindo, setAbrindo] = useState(false)
 
   if (pedido === undefined) return null
   if (!pedido || pedido.deleted) {
@@ -44,6 +50,51 @@ export default function PaymentPage() {
     )
   }
 
+  if (sessaoCaixa === undefined) return null
+
+  // Não permite fechar o pedido com o caixa fechado.
+  if (!sessaoCaixa) {
+    async function abrir() {
+      setAbrindo(true)
+      await abrirCaixa({ valorAbertura, operador })
+      setAbrindo(false)
+    }
+    return (
+      <div className="stack">
+        <PageHeader title="Pagamento" subtitle="Caixa fechado" />
+
+        <div className="card row-between">
+          <span className="muted">Total a pagar</span>
+          <strong className="amount" style={{ fontSize: '1.4rem' }}>
+            {brl(pedido.total)}
+          </strong>
+        </div>
+
+        <div className="card stack">
+          <strong>🔒 Caixa fechado</strong>
+          <p className="muted">É necessário abrir o caixa antes de concluir este pedido.</p>
+          <label className="field">
+            <span className="field-label">Valor inicial em dinheiro (R$)</span>
+            <input
+              className="input"
+              inputMode="decimal"
+              value={valorAbertura}
+              onChange={(e) => setValorAbertura(e.target.value)}
+              placeholder="0,00"
+              autoFocus
+            />
+          </label>
+          <button className="btn btn-block" onClick={abrir} disabled={abrindo}>
+            {abrindo ? 'Abrindo…' : 'Abrir caixa e continuar'}
+          </button>
+          <button className="btn btn-ghost btn-block" onClick={() => navigate('/')}>
+            Voltar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const totalPago = arred(pagamentosLista.reduce((s, p) => s + p.valor, 0))
   const restante = arred(Math.max(0, pedido.total - totalPago))
   const troco = arred(Math.max(0, totalPago - pedido.total))
@@ -58,7 +109,8 @@ export default function PaymentPage() {
   }
 
   async function confirmar() {
-    await pagamentos.fecharPedido(id)
+    if (!sessaoCaixa) return
+    await pagamentos.fecharPedido(id, { cashSessionId: sessaoCaixa.id })
     navigate(`/recibo/${id}`, { replace: true })
   }
 
