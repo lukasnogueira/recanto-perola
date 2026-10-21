@@ -61,7 +61,7 @@ export default function PaymentPage() {
 
   if (sessaoCaixa === undefined) return null
 
-  // Não permite fechar o pedido com o caixa fechado: manda para a tela de Caixa.
+  // Não permite fechar o pedido com o caixa fechado: avisa e leva para a tela de Caixa.
   if (!sessaoCaixa) {
     return (
       <div className="stack">
@@ -74,17 +74,24 @@ export default function PaymentPage() {
           </strong>
         </div>
 
-        <div className="card stack aviso-data">
-          <strong>🔒 CAIXA FECHADO</strong>
-          <p>É NECESSÁRIO ABRIR O CAIXA ANTES DE CONCLUIR ESTE PEDIDO.</p>
-          <p>ABRA O CAIXA NA TELA DE CAIXA. DEPOIS, VOLTE E FINALIZE O PEDIDO.</p>
-          <button className="btn btn-block" onClick={() => navigate('/caixa')}>
-            IR PARA O CAIXA
-          </button>
-          <button className="btn btn-ghost btn-block" onClick={() => navigate(-1)}>
-            VOLTAR
-          </button>
-        </div>
+        <Modal
+          open
+          title="⚠️ CAIXA FECHADO ⚠️"
+          onClose={() => navigate(-1)}
+          footer={
+            <button className="btn btn-block" onClick={() => navigate('/caixa')}>
+              ABRIR CAIXA
+            </button>
+          }
+        >
+          <div className="aviso-data">
+            <p>
+              <strong>⚠️ É NECESSÁRIO ABRIR O CAIXA ANTES DE CONCLUIR ESTE PEDIDO.</strong>
+            </p>
+            <p>VOCÊ SERÁ LEVADO PARA A TELA DE CAIXA.</p>
+            <p>DEPOIS, VOLTE E FINALIZE O PEDIDO.</p>
+          </div>
+        </Modal>
       </div>
     )
   }

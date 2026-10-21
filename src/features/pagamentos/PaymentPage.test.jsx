@@ -34,7 +34,7 @@ describe('PaymentPage — exige caixa aberto', () => {
     renderPagamento(pedido.id)
 
     expect((await screen.findAllByText(/Caixa fechado/i)).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /IR PARA O CAIXA/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ABRIR CAIXA/i })).toBeInTheDocument()
     expect(screen.queryByText(/Receber e fechar o pedido/i)).not.toBeInTheDocument()
 
     await caixa.abrirCaixa({ valorAbertura: 100 })
