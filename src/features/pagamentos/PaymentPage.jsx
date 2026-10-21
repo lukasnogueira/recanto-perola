@@ -3,8 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
 import * as pagamentos from '../../data/pagamentos.js'
-import { sessaoAberta, abrirCaixa, resumoCaixa, fecharCaixa } from '../../data/caixa.js'
-import { useAuth } from '../auth/AuthProvider.jsx'
+import { sessaoAberta, resumoCaixa, fecharCaixa } from '../../data/caixa.js'
 import { METODOS, rotuloMetodo } from './metodos.js'
 import { brl, dataHora } from '../../lib/format.js'
 import PageHeader from '../../components/PageHeader.jsx'
@@ -26,7 +25,6 @@ function mesmoDia(a, b) {
 export default function PaymentPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { operador } = useAuth()
   const pedido = useLiveQuery(() => db.orders.get(id), [id])
   const sessaoCaixa = useLiveQuery(() => sessaoAberta(), [])
   const pagamentosLista =
@@ -36,8 +34,6 @@ export default function PaymentPage() {
     ) ?? []
   const [metodo, setMetodo] = useState('dinheiro')
   const [valor, setValor] = useState('')
-  const [valorAbertura, setValorAbertura] = useState('')
-  const [abrindo, setAbrindo] = useState(false)
   const [avisoData, setAvisoData] = useState(false)
 
   if (pedido === undefined) return null
@@ -65,13 +61,8 @@ export default function PaymentPage() {
 
   if (sessaoCaixa === undefined) return null
 
-  // Não permite fechar o pedido com o caixa fechado.
+  // Não permite fechar o pedido com o caixa fechado: manda para a tela de Caixa.
   if (!sessaoCaixa) {
-    async function abrir() {
-      setAbrindo(true)
-      await abrirCaixa({ valorAbertura, operador })
-      setAbrindo(false)
-    }
     return (
       <div className="stack">
         <PageHeader title="Pagamento" subtitle="Caixa fechado" />
@@ -83,25 +74,15 @@ export default function PaymentPage() {
           </strong>
         </div>
 
-        <div className="card stack">
-          <strong>🔒 Caixa fechado</strong>
-          <p className="muted">É necessário abrir o caixa antes de concluir este pedido.</p>
-          <label className="field">
-            <span className="field-label">Valor inicial em dinheiro (R$)</span>
-            <input
-              className="input"
-              inputMode="decimal"
-              value={valorAbertura}
-              onChange={(e) => setValorAbertura(e.target.value)}
-              placeholder="0,00"
-              autoFocus
-            />
-          </label>
-          <button className="btn btn-block" onClick={abrir} disabled={abrindo}>
-            {abrindo ? 'Abrindo…' : 'Abrir caixa e continuar'}
+        <div className="card stack aviso-data">
+          <strong>🔒 CAIXA FECHADO</strong>
+          <p>É NECESSÁRIO ABRIR O CAIXA ANTES DE CONCLUIR ESTE PEDIDO.</p>
+          <p>ABRA O CAIXA NA TELA DE CAIXA. DEPOIS, VOLTE E FINALIZE O PEDIDO.</p>
+          <button className="btn btn-block" onClick={() => navigate('/caixa')}>
+            IR PARA O CAIXA
           </button>
-          <button className="btn btn-ghost btn-block" onClick={() => navigate('/')}>
-            Voltar
+          <button className="btn btn-ghost btn-block" onClick={() => navigate(-1)}>
+            VOLTAR
           </button>
         </div>
       </div>
