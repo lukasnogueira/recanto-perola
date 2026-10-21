@@ -57,4 +57,21 @@ describe('caixa', () => {
     const historico = await caixa.historicoCaixas()
     expect(historico).toHaveLength(1)
   })
+
+  it('limpa o histórico por comando da nuvem (uma vez)', async () => {
+    await caixa.abrirCaixa({ valorAbertura: 100 })
+    await caixa.registrarMovimento((await caixa.sessaoAberta()).id, {
+      tipo: 'sangria',
+      valor: 10,
+    })
+    await db.settings.put({ key: 'caixa.limparEm', value: 500, updatedAt: 1 })
+
+    expect(await caixa.aplicarLimpezaRemota()).toBe(true)
+    expect(await db.cashSessions.count()).toBe(0)
+    expect(await db.cashMovements.count()).toBe(0)
+    expect((await db.settings.get('caixa.limpadoEm'))?.value).toBe(500)
+
+    // segunda vez não repete
+    expect(await caixa.aplicarLimpezaRemota()).toBe(false)
+  })
 })

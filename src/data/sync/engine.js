@@ -1,6 +1,7 @@
 import { db } from '../db.js'
 import { recalcularTodos, deduplicarComandas } from '../pedidos.js'
 import { deduplicarCatalogo } from '../catalogo.js'
+import { aplicarLimpezaRemota } from '../caixa.js'
 import { obterCliente, garantirSessao, supabaseConfigurado } from './supabase.js'
 import { planejarSync, planejarItens, itemPrecisaEnviar } from './merge.js'
 
@@ -102,6 +103,12 @@ export async function sincronizar() {
       const locais = await db.settings.toArray()
       const { salvarLocal } = mergeSettings(locais, remotos.settings)
       if (salvarLocal.length) await db.settings.bulkPut(salvarLocal)
+    }
+
+    // Limpeza remota de caixa (comando vindo da nuvem).
+    if (await aplicarLimpezaRemota()) {
+      await supabase.from('cashMovements').delete().neq('id', '')
+      await supabase.from('cashSessions').delete().neq('id', '')
     }
 
     // 3) Manutenção CRDT: catálogo sem duplicatas, comandas juntas e totais derivados.

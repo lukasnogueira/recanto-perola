@@ -141,3 +141,22 @@ export function historicoCaixas() {
     .toArray()
     .then((lista) => lista.sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0)))
 }
+
+// Apaga (de verdade) todo o histórico de caixa deste aparelho.
+export async function limparHistoricoCaixa() {
+  await db.cashMovements.clear()
+  await db.cashSessions.clear()
+}
+
+// Comando de limpeza disparado pela nuvem: quando o app sincroniza e encontra
+// a chave `caixa.limparEm` mais nova que a última limpeza feita aqui, apaga o
+// histórico local. Assim a limpeza chega em todos os aparelhos.
+export async function aplicarLimpezaRemota() {
+  const comando = await db.settings.get('caixa.limparEm')
+  if (!comando?.value) return false
+  const feito = await db.settings.get('caixa.limpadoEm')
+  if ((feito?.value || 0) >= comando.value) return false
+  await limparHistoricoCaixa()
+  await db.settings.put({ key: 'caixa.limpadoEm', value: comando.value, updatedAt: agora() })
+  return true
+}
