@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import PaymentPage from './PaymentPage.jsx'
 import { AuthProvider } from '../auth/AuthProvider.jsx'
 import { db } from '../../data/db.js'
 import * as pedidos from '../../data/pedidos.js'
+import * as pagamentos from '../../data/pagamentos.js'
 import * as caixa from '../../data/caixa.js'
 
 function renderPagamento(id) {
@@ -38,5 +39,26 @@ describe('PaymentPage — exige caixa aberto', () => {
     await caixa.abrirCaixa({ valorAbertura: 100 })
 
     expect(await screen.findByText(/Receber e fechar o pedido/i)).toBeInTheDocument()
+  })
+
+  it('avisa quando o caixa é de outra data e permite continuar mesmo assim', async () => {
+    const pedido = await pedidos.abrirPedidoBalcao()
+    await pedidos.adicionarItem(pedido.id, { id: 'p1', nome: 'Espeto', preco: 30 })
+    await db.orders.update(pedido.id, { createdAt: Date.now() - 36 * 60 * 60 * 1000 })
+    await caixa.abrirCaixa({ valorAbertura: 100 })
+    await pagamentos.registrarPagamento(pedido.id, { metodo: 'dinheiro', valor: 30 })
+
+    renderPagamento(pedido.id)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Confirmar e fechar/i }))
+
+    expect(await screen.findByRole('button', { name: /FECHAR CAIXA DO DIA ANTERIOR/i })).toBeInTheDocument()
+    const continuar = screen.getByRole('button', { name: /CONTINUAR MESMO ASSIM/i })
+
+    fireEvent.click(continuar)
+
+    await waitFor(async () => {
+      expect((await pedidos.pedido(pedido.id)).status).toBe('fechado')
+    })
   })
 })

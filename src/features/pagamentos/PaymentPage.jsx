@@ -3,13 +3,25 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../data/db.js'
 import * as pagamentos from '../../data/pagamentos.js'
-import { sessaoAberta, abrirCaixa } from '../../data/caixa.js'
+import { sessaoAberta, abrirCaixa, resumoCaixa, fecharCaixa } from '../../data/caixa.js'
 import { useAuth } from '../auth/AuthProvider.jsx'
 import { METODOS, rotuloMetodo } from './metodos.js'
-import { brl } from '../../lib/format.js'
+import { brl, dataHora } from '../../lib/format.js'
 import PageHeader from '../../components/PageHeader.jsx'
+import Modal from '../../components/Modal.jsx'
 
 const arred = (n) => Math.round(n * 100) / 100
+
+function mesmoDia(a, b) {
+  if (!a || !b) return true
+  const da = new Date(a)
+  const db_ = new Date(b)
+  return (
+    da.getFullYear() === db_.getFullYear() &&
+    da.getMonth() === db_.getMonth() &&
+    da.getDate() === db_.getDate()
+  )
+}
 
 export default function PaymentPage() {
   const { id } = useParams()
@@ -26,6 +38,7 @@ export default function PaymentPage() {
   const [valor, setValor] = useState('')
   const [valorAbertura, setValorAbertura] = useState('')
   const [abrindo, setAbrindo] = useState(false)
+  const [avisoData, setAvisoData] = useState(false)
 
   if (pedido === undefined) return null
   if (!pedido || pedido.deleted) {
@@ -108,10 +121,29 @@ export default function PaymentPage() {
     setValor('')
   }
 
-  async function confirmar() {
-    if (!sessaoCaixa) return
+  const datasDiferentes = !mesmoDia(sessaoCaixa.openedAt, pedido.createdAt)
+
+  async function finalizar() {
     await pagamentos.fecharPedido(id, { cashSessionId: sessaoCaixa.id })
     navigate(`/recibo/${id}`, { replace: true })
+  }
+
+  function confirmar() {
+    if (!sessaoCaixa) return
+    if (datasDiferentes) {
+      setAvisoData(true)
+      return
+    }
+    finalizar()
+  }
+
+  async function fecharCaixaAnterior() {
+    const resumo = await resumoCaixa(sessaoCaixa.id)
+    await fecharCaixa(sessaoCaixa.id, {
+      valorContado: resumo.esperadoDinheiro,
+      observacao: 'FECHAMENTO AUTOMATICO: CAIXA DE OUTRO DIA AO FINALIZAR PEDIDO',
+    })
+    setAvisoData(false)
   }
 
   return (
@@ -124,6 +156,15 @@ export default function PaymentPage() {
           {brl(pedido.total)}
         </strong>
       </div>
+
+      {datasDiferentes && (
+        <div className="aviso-data card">
+          <strong>⚠️ ATENÇÃO: O CAIXA FOI ABERTO EM OUTRA DATA.</strong>
+          <span className="muted">
+            Ao confirmar, você poderá fechar o caixa do dia anterior ou continuar mesmo assim.
+          </span>
+        </div>
+      )}
 
       <div className="metodos">
         {METODOS.map((m) => (
@@ -180,6 +221,41 @@ export default function PaymentPage() {
       <button className="btn btn-block" onClick={confirmar} disabled={!quitado || totalPago <= 0}>
         {quitado ? 'Confirmar e fechar' : `Faltam ${brl(restante)}`}
       </button>
+
+      <Modal
+        open={avisoData}
+        title="⚠️ ATENÇÃO ⚠️"
+        onClose={() => setAvisoData(false)}
+        footer={
+          <div className="stack">
+            <button className="btn btn-danger btn-block" onClick={fecharCaixaAnterior}>
+              ⚠️ FECHAR CAIXA DO DIA ANTERIOR
+            </button>
+            <button
+              className="btn btn-secondary btn-block"
+              onClick={() => {
+                setAvisoData(false)
+                finalizar()
+              }}
+            >
+              CONTINUAR MESMO ASSIM
+            </button>
+          </div>
+        }
+      >
+        <div className="aviso-data">
+          <p>
+            <strong>⚠️ O CAIXA FOI ABERTO EM UMA DATA DIFERENTE DA DATA DESTE PEDIDO.</strong>
+          </p>
+          <p>
+            CAIXA ABERTO EM: <strong>{dataHora(sessaoCaixa.openedAt)}</strong>
+          </p>
+          <p>
+            PEDIDO DE: <strong>{dataHora(pedido.createdAt)}</strong>
+          </p>
+          <p>DESEJA FECHAR O CAIXA DO DIA ANTERIOR OU CONTINUAR MESMO ASSIM?</p>
+        </div>
+      </Modal>
     </div>
   )
 }

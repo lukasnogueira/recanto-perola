@@ -627,6 +627,23 @@ a {
   background: var(--color-primary-soft);
 }
 
+/* Aviso de divergência de data no caixa */
+.aviso-data {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-transform: uppercase;
+  color: #8a4b00;
+  background: #fff6e5;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.aviso-data p {
+  margin: 0;
+}
+
 /* Modal */
 .modal-backdrop {
   position: fixed;
